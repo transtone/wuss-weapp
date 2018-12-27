@@ -1,0 +1,16 @@
+<w-pane title="DatePicker" desc="时间选择器" />
+
+<w-pane desc="Default" />
+
+<w-cell-group>
+	<w-date-picker
+    label="请选择日期"
+    title="请选择日期"
+    mode="datetime"
+    defaultValue="{{ defaultDate }}"
+    value="{{ currentValue }}"
+	/>
+</w-cell-group>
+
+
+<w-button bind:onClick="handleClick" type="info">change date </w-button>

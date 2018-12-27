@@ -40,30 +40,41 @@ Component({
         const {
           options,
           defaultValue,
+          isDatePicker,
         } = this.data;
         if (!Array.isArray(options) || !Array.prototype.toString.call(options)) {
           console.warn('cell-picker Warning: Missing required parameters: options');
         };
         this.setData({
-          value: defaultValue || [],
           _isLinkage: !!(
             options[1] &&
             options[1][0] &&
             options[1][0].hasOwnProperty('parent')
           ),
+          _currentValue: defaultValue || [0,0,0],
           _isRadio: !!(options[0] && !Array.isArray(options[0])),
-        }, () => this.initPicker());
-        this.setData({
-          _initPicker: false,
-        }, () => setTimeout(() => {
+        }, () => !isDatePicker ? this.initPicker() : '');
+        if (!isDatePicker) {
           this.setData({
-            _initPicker: true,
-          })
-        }, 20));
+            _initPicker: false,
+          }, () => setTimeout(() => {
+            this.setData({
+              _initPicker: true,
+            })
+          }, 20));
+        };
       },
     },
     defaultValue: {
       type: null,
+    },
+    currentValue: {
+      type: null,
+      observer(__v) {
+        __v && this.setData({
+          value: __v || [],
+        }, () => this._setCurrentValue());
+      },
     },
     cancelTextColor: {
       type: String,
@@ -100,6 +111,9 @@ Component({
     placeholder: {
       type: String,
     },
+    isDatePicker: {
+      type: Boolean,
+    },
   },
   data: {
     _visible: false,
@@ -111,6 +125,7 @@ Component({
     _currentValue: [],
     _isRadio: false,
     _isReadyConfirm: true,
+    _disabledInitRender: false,
   },
   methods: {
     _handleClick() {
@@ -125,24 +140,18 @@ Component({
         defaultKey,
         _isLinkage
       } = this.data;
+      debugger;
       const currentValues = this.getValues(_currentValue, defaultKey);
       if ((typeof value === 'string' ? value : JSON.stringify(value)) === (typeof currentValues === 'string' ? currentValues : JSON.stringify(currentValues))) {
-        // console.log('两个值相等，不重置当前值');
+        console.log('两个值相等，不重置当前值');
       } else {
-        if(_isLinkage) {
-          this.setData({
-            _currentValue: value,
-          }, () => {
-            this.formatOptions();
-            this.setData({
-              _currentValue: this.getValues(value, defaultKey, true),
-            })
-          })
-        } else {
-          this.setData({
-            _currentValue: this.getValues(value, defaultKey, true),
-          })
-        }
+        const _currentValue_ = this.getValues(value, defaultKey, true);
+        this.setData({
+          _currentValue: _currentValue_,
+        }, () => {
+          this.triggerEvent('onChange',{ value: _currentValue_ },{});
+          this.formatOptions();
+        });
       }
       this.setData({
         _visible: false,
@@ -225,6 +234,7 @@ Component({
       const currentkey = defaultKey === 'key' ? 'key' : 'value';
       try {
         currentOpitons.forEach((v, i) => {
+          debugger;
           if (!_isRadio) {
             if (!!Array.prototype.toString.call(value)) {
               if (!decode) {
@@ -263,18 +273,23 @@ Component({
       this.setData({
         _currentValue: value,
       });
+      this.triggerEvent('onChange', {
+        value
+      }, {});
       this.formatOptions();
     },
     formatOptions() {
-      const {
+      let {
         options,
         _currentValue,
         _isLinkage,
       } = this.data;
       if (!_isLinkage) return false;
+      _currentValue = _currentValue.length >0 ? _currentValue : [0,0,0];
       const _options = [];
       let prev;
       options.forEach((v, i) => {
+        debugger;
         if (i === 0) {
           return _options.push(v);
         } else {
@@ -286,6 +301,36 @@ Component({
         _options,
       });
     },
+    _setCurrentValue() {
+      const {
+        currentValue,
+        showValue,
+        placeholder,
+        defaultKey,
+      } = this.data;
+      let currentText = placeholder || '';
+      this.setData({
+        _currentValue: currentValue,
+      }, () => {
+        this.formatOptions();
+        if (!this.data._isRadio) {
+          if (Array.isArray(currentValue) && !!Array.prototype.toString.call(currentValue)) {
+            currentText = this.getValues(currentValue, showValue ? 'value' : 'key');
+          }
+        } else {
+          this.data.options.forEach((__v, _i) => {
+            if ((typeof __v['value'] === 'string' ? __v['value'] : JSON.stringify(__v['value'])) === (typeof currentValue === 'string' ? currentValue : JSON.stringify(currentValue))) {
+              currentText = __v[showValue ? 'value' : 'key'];
+            }
+          });
+        }
+      });
+      setTimeout(() => this.setData({
+        _currentText: Array.isArray(currentText) ? currentText.join(' ', '') : currentText,
+        value: this.getValues(currentValue, defaultKey),
+      }),500);
+      this.validate(currentValue);
+    },
     initPicker() {
       const {
         defaultValue,
@@ -294,7 +339,8 @@ Component({
       } = this.data;
       this._ArrayKeysToArrayObject();
       this.formatOptions();
-      let defaultText = placeholder || '';
+      let defaultText;
+      debugger;
       if (defaultValue) {
         if (!this.data._isRadio) {
           if (Array.isArray(defaultValue) && !!Array.prototype.toString.call(defaultValue)) {
@@ -306,13 +352,16 @@ Component({
               defaultText = __v[showValue ? 'value' : 'key'];
             }
           });
-        }
+        };
+        this.setData({
+          _currentText: defaultText,
+        });
+      } else if (placeholder) {
+        this.setData({
+          _currentText: placeholder,
+        });
       };
       this.validate(defaultValue);
-      this.setData({
-        _currentText: defaultText,
-        _currentValue: [],
-      });
     },
     //调用验证
     validate(newValue) {
@@ -321,5 +370,34 @@ Component({
       validate.isValidate(newValue || '');
     },
   },
-  ready: function () {},
+  ready: function () {
+    const {
+      options,
+      defaultValue,
+      isDatePicker,
+    } = this.data;
+    if (isDatePicker) {
+      if (!Array.isArray(options) || !Array.prototype.toString.call(options)) {
+        console.warn('cell-picker Warning: Missing required parameters: options');
+      };
+      this.setData({
+        value: defaultValue || [],
+        _isLinkage: !!(
+          options[1] &&
+          options[1][0] &&
+          options[1][0].hasOwnProperty('parent')
+        ),
+        _isRadio: !!(options[0] && !Array.isArray(options[0])),
+        _disabledInitRender: isDatePicker,
+      }, () => this.initPicker());
+      this.setData({
+        _initPicker: false,
+      }, () => setTimeout(() => {
+        this.setData({
+          _initPicker: true,
+        })
+      }, 20));
+      this.initPicker();
+    }
+  },
 });
